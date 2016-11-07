@@ -1,4 +1,8 @@
-""" functions for decoding DER encoded objects """
+"""
+Functions for decoding DER encoded objects
+
+Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
+"""
 import struct
 def get_int8(b):  return struct.unpack(">B", b)[0]
 def get_int16(b): return struct.unpack(">H", b)[0]

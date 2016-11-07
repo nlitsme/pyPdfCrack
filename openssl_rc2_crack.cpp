@@ -2,6 +2,8 @@
  * A simple brute force RC2 cracker.
  *
  * Trying all 40 bit values in about 1.5 days on my 2013 macbookpro
+ *
+ * Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
  */
 #include <stdint.h>
 #include <unistd.h>

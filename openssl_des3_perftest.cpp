@@ -1,5 +1,7 @@
 /*
  * A simple performance test for openssl Triple-DES
+ *
+ * Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
  */
 #include <stdint.h>
 #include <unistd.h>

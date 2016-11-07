@@ -158,3 +158,5 @@ Instead of `cat wordlist.txt`  you can use JohnTheRipper for password generation
     john --wordlist=dict.txt --rules --stdout" | ./openssl_pass_crack ....
 
 
+
+Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>

@@ -3,6 +3,8 @@
  *
  * This takes the salt + target value, and then tries all words read from stdin
  * as password.
+ *
+ * Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
  */
 #include <stdint.h>
 #include <unistd.h>

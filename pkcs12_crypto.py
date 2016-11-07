@@ -1,5 +1,7 @@
 """
 PKCS12 password algorithm
+
+Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
 """
 from __future__ import division, print_function
 from Crypto.Hash import SHA as SHA1

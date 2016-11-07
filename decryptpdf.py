@@ -8,6 +8,7 @@ Usage:
 
     python3 decryptpdf.py encryptedWithCertificateAes128.pdf test.p12 kspass
 
+Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
 """
 from binascii import *
 from pdfparser import parsepdf, PdfOperator

@@ -1,5 +1,7 @@
 /*
  * A simple performance test for openssl SHA1 hash iteration
+ *
+ * Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
  */
 #include <stdint.h>
 #include <unistd.h>

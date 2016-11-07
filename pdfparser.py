@@ -1,5 +1,7 @@
 """
 Simple pdf parser
+
+Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
 """
 from __future__ import print_function
 import binascii

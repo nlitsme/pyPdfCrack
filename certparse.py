@@ -1,5 +1,7 @@
 """
 parse various types of pkcsX.X asn1-DER encoded objects
+
+Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
 """
 from __future__ import division, print_function
 from der_decoder import  *

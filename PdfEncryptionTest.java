@@ -1,5 +1,7 @@
 /*
  * use itext to decrypt the pdf
+ *
+ * Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
  */
 import com.itextpdf.io.font.FontConstants;
 import com.itextpdf.kernel.crypto.CryptoUtil;
