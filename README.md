@@ -30,7 +30,7 @@ As a side project i created a simple PDF parser, which outputs the parsing stack
 
     python pdfparser.py encryptedWithCertificateAes128.pdf
 
-producing the following output:
+producing the following output: ( not yet with the pretty indenting )
 
     [PdfComment: ascii:'PDF-1.7', PdfComment: hex:'e2e3cfd3', 
      PdfOperator: xref,
@@ -117,9 +117,39 @@ producing the following output:
          PdfName: V, PdfNumber: 4]]
 
 
+Pdf Certificate Encryption
+==========================
+
+The certificate encryption works as follows:
+
+To be able to read a pdf, you need the corresponding certificate, for which you need a password.
+
+The certificate contains two encrypted parts, both encrypted with the same password.
+The first is the certificate owner information, basically a x.509 certificate.
+This part is encrypted using 40bit RC2, the key can easily be brute forced, less than a day's work on a modern laptop.
+The second part contains the private rsa key for the owner certificate.
+This part is encrypted using Triple-DES with a 192 bit key.
+Both the 40bit RC2 key and 192bit 3DES key are derived from the certificate password by repeatedle doing a SHA1 of the
+salted password string.
+
+So, by first cracking the 40bit RC2 key, and then using this as the target for a dictionary attack,
+one might be able to crack the encrypted rsa private key.
+
+Note that both rc2 and 3des are used in cbc mode, with a IV calculated by the same salted keygeneration algorithm.
+When cracking the RC2 key, you don't actually need the IV, just skip the first block, and use that as your
+brute force target. The IV for the second block will the the first cipher block.
+
+Now that we have decrypted the certificate, in the PDF there is the `Recipients` string in the `Encrypt` dictionary.
+This contains the pkcs8 encoded decryption seed.
+First there is the RSA pubkey-encrypted 128-bit RC2 key, which decrypts the seed + permissions string.
+
+The `seed` is used to calculate a `mkey` by taking the sha1 of the seed, the recipient, and perms.
+The `mkey` is used to calculate per-object by taking the md5 of the mkey and the object id.
+The objectkey is used to decrypt each object using AES.
+
+
 Cracking a PKCS12 certificate
 =============================
-
 
 hexdump of the first couple of encrypted and decrypted blocks of the 40-bit RC2 encrypted certificate in test.p12:
 
