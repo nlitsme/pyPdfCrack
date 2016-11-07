@@ -20,7 +20,7 @@ Will output the following decrypted data:
     b'ModDate' b"D:20160809103103-03'00'\t\t\t\t\t\t\t\t\t"
     b'Producer' b'iText\xae 7.0.1-SNAPSHOT \xa92000-2016 iText Group NV (AGPL-version)\x02\x02'
 
-The repeating sequences at the end of each decrypted text are the PKCS1.5 padding.
+The repeating sequences at the end of each decrypted text are the PKCS7 padding.
 
 
 Pdf Parser
