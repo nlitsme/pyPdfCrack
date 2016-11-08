@@ -8,10 +8,14 @@ import binascii
 import struct
 import re
 import sys
+import os
 if sys.version_info < (3, 0):
     bytes = bytearray
     reload(sys)
     sys.setdefaultencoding('utf-8')
+
+    import scandir
+    os.scandir = scandir.scandir
 
 # objects:
 
@@ -37,6 +41,8 @@ def string_nesting_escape(txt):
     for c in "[({})]":
         txt = txt.replace(c, "#%02x" % ord(c))
     return txt
+def simple_decode_string(txt):
+    return txt.decode('utf-8', 'replace')
 def decode_string(txt):
     if txt.startswith(b'\xfe\xff'):
         txt = txt.decode('utf-16be', 'replace')[1:]
@@ -76,7 +82,7 @@ class PdfNesting:
         self.value = value
 
     def __repr__(self):
-        return "PdfNesting: %s" % string_nesting_escape(self.value)
+        return "PdfNesting: %s" % string_nesting_escape(simple_decode_string(self.value))
 
     def isclose(self):
         if self.value.startswith(b'end'):
@@ -107,7 +113,7 @@ class PdfName:
         self.value = value
 
     def __repr__(self):
-        return "PdfName: %s" % string_nesting_escape(self.value)
+        return "PdfName: %s" % string_nesting_escape(simple_decode_string(self.value))
 
 class PdfNumber:
     def __init__(self, value):
@@ -177,6 +183,8 @@ class PdfReference:
 
 def is_delimiter(c):
     return c in b"{}<>[]()/%"
+def is_opening_delimiter(c):
+    return c in b"{<[(/%"
 def is_whitespace(c):
     return c in b" \t\r\n\f\x00"
 
@@ -194,35 +202,32 @@ def parse_string_escape(fh):
     b = fh.read(1)
     if b==b'':
         raise Exception("truncated string escape at EOF")
-    if b==b'r': return None, b'\r'
-    if b==b'n': return None, b'\n'
-    if b==b't': return None, b'\t'
-    if b==b'b': return None, b'\b'
-    if b==b'f': return None, b'\f'
-    if b==b'\n': return None, b''
-    if b==b'\r': return None, b''
+    if b==b'r': return b'\r'
+    if b==b'n': return b'\n'
+    if b==b't': return b'\t'
+    if b==b'b': return b'\b'
+    if b==b'f': return b'\f'
+    if b==b'\n': return b''
+    if b==b'\r': return b''
     if b in b'01234567':
         digits = b''
         while len(digits)<3 and b in b"01234567":
             digits += b
             b = fh.read(1)
-        return b, struct.pack("B", int(digits, 8))
+        if b not in b"01234567":
+            fh.unget(b)
+        return struct.pack("B", int(digits, 8))
 
     # \\, (, ),   and others
-    return None, b
+    return b
 
 
 def parse_string(fh):
     """ read bracketed and escaped (string) from the pdf """
     res = b''
     plevel = 1
-    nextb = None
     while plevel:
-        if nextb is None:
-            b = fh.read(1)
-        else:
-            b, nextb = nextb, None
-
+        b = fh.read(1)
         if b==b'':
             raise Exception("truncated string at EOF")
 
@@ -233,7 +238,7 @@ def parse_string(fh):
             if plevel==0:
                 break
         elif b==b'\\':
-            nextb, b = parse_string_escape(fh)
+            b = parse_string_escape(fh)
         res += b
     return res
 
@@ -255,19 +260,21 @@ def parse_hexdata(fh):
         else:
             raise Exception("unexpected char in hex string: %s at 0x%x" % (b, fh.tell()))
 
-def parse_name(fh):
+def parse_name(args, fh):
     """ read name-like text from the pdf """
     n = b''
     while True:
         b = fh.read(1)
         if b==b'':
-            return None, n
+            return n
         if b==b'#':
             b = struct.pack("B", int(fh.read(2), 16))
         elif is_whitespace(b):
-            return None, n
+            fh.unget(b)
+            return n
         elif is_delimiter(b):
-            return b, n
+            fh.unget(b)
+            return n
         n += b
 
 def parse_number(fh):
@@ -275,20 +282,19 @@ def parse_number(fh):
     n = b''
     while True:
         b = fh.read(1)
+        if b == b'':
+            return n
         if b not in b"-.0123456789":
-            return b, n
+            fh.unget(b)
+            return n
         n += b
 
-def pdftokenizer(fh):
+def pdftokenizer(args, fh):
     """
     pdftokenizer splits a pdf in tokens, which are then parsed into higher level objects by parsepdf
     """
-    nextb = None
     while True:
-        if nextb is None:
-            b = fh.read(1)
-        else:
-            b, nextb = nextb, None
+        b = fh.read(1)
 
         if b == b'':
             break
@@ -304,6 +310,8 @@ def pdftokenizer(fh):
             b = fh.read(1)
             if b==b'<':
                 yield PdfNesting(b"<<")
+            elif b==b'>':
+                yield PdfHexdata(b'')
             elif b:
                 hexdata = parse_hexdata(fh)
                 yield PdfHexdata(b + hexdata)
@@ -318,30 +326,37 @@ def pdftokenizer(fh):
         elif b == b']':
             yield PdfNesting(b"]")
         elif b == b'/':
-            nextb, name = parse_name(fh)
+            name = parse_name(args, fh)
             yield PdfName(name)
         elif b in b"-.0123456789":
-            nextb, num = parse_number(fh)
+            num = parse_number(fh)
             yield PdfNumber(b + num)
         else:
-            nextb, token = parse_name(fh)
+            token = parse_name(args, fh)
             # false, true, null, R, obj, endobj, stream, endstream, startxref, xref, trailer
             yield PdfOperator(b + token)
 
-def readstream(fh):
-    """ reads from the pdf until the string 'endstream' is found. """
-    strdata = b''
+def readuntil(fh, tag):
+    """
+    Reads from the filestream until the tag is found.
+    Leaves tag in the stream.
+    """
+    data = b''
+    curpos = 0
     while True:
-        byte = fh.read(1)
-        if byte == b'':
+        block = fh.read(1024)
+        if block == b'':
             break
-        strdata += byte
-        if strdata.endswith(b"endstream"):
-            break
-    return strdata
+        data += block
+        ix = data.find(tag, curpos)
+        if ix>=0:
+            fh.unget(data[ix:])
+            return data[:ix], True
+        curpos = len(data)-len(tag)
+    return data, False
 
 
-def parsepdf(fh):
+def parsepdf(args, fh):
     """
     parsepdf reads the stream, creates tokens, and from extracts nested structures
     like dicts, arrays, objects and streams
@@ -356,7 +371,13 @@ def parsepdf(fh):
         for i, itm0 in enumerate(stack[::-1]):
             if isinstance(itm0, PdfNesting) and itm1.closes(itm0):
                 return -i
-        raise Exception("could not find opening item for %s at 0x%x" % (itm1, fh.tell()))
+        if args.danglingfatal:
+            raise Exception("could not find opening item for %s at 0x%x" % (itm1, fh.tell()))
+        else:
+            if args.verbose:
+                print("could not find opening item for %s at 0x%x" % (itm1, fh.tell()))
+            return None
+
     def getobjref():
         objgen = stack.pop()
         if not isinstance(objgen, PdfNumber): raise Exception("expected number")
@@ -365,7 +386,17 @@ def parsepdf(fh):
         return objid.asint(), objgen.asint()
 
 
-    for item in pdftokenizer(fh):
+    start, found = readuntil(fh, b'%PDF')
+    if not found:
+        raise Exception("No %PDF tag found")
+
+    # todo: some pdfs have non-comment garbage on the 2nd line
+
+    if args.verbose:
+        print("skipping: %s" % start)
+    for item in pdftokenizer(args, fh):
+        if args.verbose:
+            print(item)
         if isinstance(item, PdfComment) and item.value.startswith(b'%EOF'):
             break
         if isinstance(item, PdfOperator) and item.value in (b'obj', b'endobj'):
@@ -373,18 +404,22 @@ def parsepdf(fh):
         if isinstance(item, PdfNesting):
             if item.isclose():
                 i = searchstack(item)
-                items = stack[i:] if i<0 else []
-                del stack[i-1:]
-                if item.value==b'>>':
-                    stack.append(PdfDictionary(items))
-                elif item.value==b']':
-                    stack.append(PdfArray(items))
-                elif item.value==b'endobj':
-                    objid, objgen = getobjref()
-                    # note: ignoring objgen
-                    objects[objid] = PdfObject(items)
+                if i is None:
+                    # buggy pdf - parse anyway
+                    stack.append(item)
                 else:
-                    raise Exception("unexpected nest: %s at 0x%x" % (item, fh.tell()))
+                    items = stack[i:] if i<0 else []
+                    del stack[i-1:]
+                    if item.value==b'>>':
+                        stack.append(PdfDictionary(items))
+                    elif item.value==b']':
+                        stack.append(PdfArray(items))
+                    elif item.value==b'endobj':
+                        objid, objgen = getobjref()
+                        # note: ignoring objgen
+                        objects[objid] = PdfObject(items)
+                    else:
+                        raise Exception("unexpected nest: %s at 0x%x" % (item, fh.tell()))
             else:
                 stack.append(item)
         elif isinstance(item, PdfOperator):
@@ -392,7 +427,9 @@ def parsepdf(fh):
                 d = stack.pop()
                 if not isinstance(d, PdfDictionary): raise Exception("expected dict before stream")
                 #if not d.has(b'Length'): raise Exception("expected Length in stream dict")
-                strdata = readstream(fh)
+                strdata, found = readuntil(fh, b'endstream')
+                if not found:
+                    raise Exception("No endstream found")
                 
                 stack.append(PdfStream(d, strdata))
             elif item.value == b'R':
@@ -405,16 +442,95 @@ def parsepdf(fh):
             stack.append(item)
     return stack, objects
 
+
+class UngetStream:
+    def __init__(self, fh):
+        self.fh = fh
+        self.buffer = b''
+    def unget(self, data):
+        self.buffer = data + self.buffer
+    def read(self, size):
+        data = b''
+        if self.buffer:
+            want = min(len(self.buffer), size)
+            data, self.buffer = self.buffer[:want], self.buffer[want:]
+            size -= want
+        if size:
+            data += self.fh.read(size)
+        return data
+    def tell(self):
+        return self.fh.tell() - len(self.buffer)
+
+
+def processfile(args, fh):
+    stack, objects = parsepdf(args, UngetStream(fh))
+    print(stack)
+    for k,v in objects.items():
+        print("%05d: %s" % (k, v))
+
+
+def DirEnumerator(args, path):
+    """
+    Enumerate all files / links in a directory,
+    optionally recursing into subdirectories,
+    or ignoring links.
+    """
+    for d in os.scandir(path):
+        try:
+            if d.name == '.' or d.name == '..':
+                pass
+            elif d.is_symlink() and args.skiplinks:
+                pass
+            elif d.is_file():
+                yield d.path
+            elif d.is_dir() and args.recurse:
+                for f in DirEnumerator(args, d.path):
+                    yield f
+        except Exception as e:
+            print("EXCEPTION %s accessing %s/%s" % (e, path, d.name))
+
+
+def EnumeratePaths(args, paths):
+    """
+    Enumerate all urls, paths, files from the commandline
+    optionally recursing into subdirectories.
+    """
+    for fn in paths:
+        try:
+            if os.path.islink(fn) and args.skiplinks:
+                pass
+            elif os.path.isdir(fn) and args.recurse:
+                for f in DirEnumerator(args, fn):
+                    yield f
+            elif os.path.isfile(fn):
+                yield fn
+        except Exception as e:
+            print("EXCEPTION %s accessing %s" % (e, fn))
+
+
 if __name__=="__main__":
     import sys
-    for fn in sys.argv[1:]:
-        print("==> %s <==" % fn)
-        try:
-            with open(fn, "rb") as fh:
-                stack, objects = parsepdf(fh)
-                print(stack)
-                for k,v in objects.items():
-                    print("%05d: %s" % (k, v))
-        except Exception as e:
-            print("ERROR %s" % e)
-            raise
+    import argparse
+    parser = argparse.ArgumentParser(description='pdfparser')
+    parser.add_argument('--verbose', '-v', action='count')
+    parser.add_argument('--recurse', '-r', action='store_true', help='recurse into directories')
+    parser.add_argument('--skiplinks', '-L', action='store_true', help='skip symbolic links')
+    parser.add_argument('--errorfatal', '-E', action='store_true', help='abort on errors')
+    parser.add_argument('--danglingfatal', '-d', action='store_true', help='error on dangling endobj, bracket')
+
+    parser.add_argument('FILES', type=str, nargs='*', help='Files')
+    args = parser.parse_args()
+
+
+    if args.FILES:
+        for fn in EnumeratePaths(args, args.FILES):
+            print("==> %s <==" % fn)
+            try:
+                with open(fn, "rb") as fh:
+                    processfile(args, fh)
+            except Exception as e:
+                print("ERROR %s" % e)
+                if args.errorfatal:
+                    raise
+    else:
+        processfile(args, sys.stdin.buffer)
