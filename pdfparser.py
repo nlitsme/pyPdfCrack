@@ -17,6 +17,10 @@ if sys.version_info < (3, 0):
     import scandir
     os.scandir = scandir.scandir
 
+    stdin = sys.stdin
+else:
+    stdin = sys.stdin.buffer
+
 # objects:
 
 # (string)     - use \ooo, \r\n\t\b\f\(\)\\  for escaping
@@ -74,6 +78,8 @@ class PdfString:
         self.value = value
     def __repr__(self):
         return "PdfString: %s" % string_nesting_escape(decode_string(self.value))
+    def asbytes(self):
+        return self.value
 
 
 class PdfNesting:
@@ -107,6 +113,8 @@ class PdfHexdata:
 
     def __repr__(self):
         return "PdfHexdata: %s" % self.value
+    def asbytes(self):
+        return binascii.a2b_hex(self.value)
 
 class PdfName:
     def __init__(self, value):
@@ -214,8 +222,7 @@ def parse_string_escape(fh):
         while len(digits)<3 and b in b"01234567":
             digits += b
             b = fh.read(1)
-        if b not in b"01234567":
-            fh.unget(b)
+        fh.unget(b)
         return struct.pack("B", int(digits, 8))
 
     # \\, (, ),   and others
@@ -355,6 +362,34 @@ def readuntil(fh, tag):
         curpos = len(data)-len(tag)
     return data, False
 
+def eolpos(data, pos):
+    ixl = []
+    for c in b"\r\n":
+        ix = data.find(c, pos)
+        if ix>=0:
+            ixl.append(ix)
+    return min(ixl) if ixl else -1
+
+def readuntileol(fh):
+    """
+    Reads from the filestream until CR, CRLF or LF is encoutered
+    """
+    data = b''
+    curpos = 0
+    while True:
+        block = fh.read(1024)
+        if block == b'':
+            break
+        data += block
+        ix = eolpos(data, curpos)
+        if ix>=0:
+            fh.unget(data[ix:])
+            return data[:ix]
+        curpos = len(data)
+    return data
+
+
+
 
 def parsepdf(args, fh):
     """
@@ -397,8 +432,22 @@ def parsepdf(args, fh):
     for item in pdftokenizer(args, fh):
         if args.verbose:
             print(item)
-        if isinstance(item, PdfComment) and item.value.startswith(b'%EOF'):
-            break
+        if isinstance(item, PdfComment):
+            if item.value.startswith(b'%EOF'):
+                nextbytes = fh.read(16)
+                # some site have broken download methods
+                if nextbytes.find(b"<!DOCTYPE")>=0:
+                    stack.append(item)
+                    break
+                fh.unget(nextbytes)
+            if item.value.startswith(b'PDF'):
+                nextbytes = fh.read(4)
+                if nextbytes in (b'\xc8\xd2\xf0\xfe', b'\x7a\x47\x5f\xd5', b'\x0a\xc8\xd2\xf0', b'\x0a\x7a\x47\x5f'):
+                    nextbytes += readuntileol(fh)
+                    print("skipping garbageline: %s" % (binascii.b2a_hex(nextbytes)))
+                    continue
+                fh.unget(nextbytes)
+
         if isinstance(item, PdfOperator) and item.value in (b'obj', b'endobj'):
             item = PdfNesting(item.value)
         if isinstance(item, PdfNesting):
@@ -533,4 +582,4 @@ if __name__=="__main__":
                 if args.errorfatal:
                     raise
     else:
-        processfile(args, sys.stdin.buffer)
+        processfile(args, stdin)
