@@ -11,7 +11,7 @@ Usage:
 Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
 """
 from binascii import *
-from pdfparser import parsepdf, PdfOperator
+from pdfparser import parsepdf, PdfOperator, UngetStream
 from certparse import pkcs12decoder, XXXXdecoder, privdecoder
 from der_decoder import bytes2int
 from pkcs12_crypto import genkey, des3, rc2, sha1, aes, md5
@@ -19,6 +19,10 @@ from pkcs12_crypto import genkey, des3, rc2, sha1, aes, md5
 from Crypto.Cipher import ARC2
 import sys
 import struct
+
+class empty: pass
+args = empty()
+args.verbose = args.recurse = args.skiplinks = False
 
 def findtrailer(stk):
     """ searches pdf stack for 'trailer' keyword """
@@ -30,7 +34,7 @@ def findtrailer(stk):
             retnext = True
 
 pdfname, certname, certpw = sys.argv[1:]
-stk, objs = parsepdf(open(pdfname, "rb"))
+stk, objs = parsepdf(args, UngetStream(open(pdfname, "rb")))
 
 certpw += '\x00'
 certpw = certpw.encode('utf-16be')
@@ -72,7 +76,7 @@ def objkey(oid, gen, mkey):
     """ generate decryption key for the specified object """
     return md5(mkey[:16] + struct.pack("<HBH", oid&0xFFFF, oid>>16, gen) + b'sAlT')
 
-for (rsadata, symalg, num, iv, symdata) in XXXXdecoder(rcp.value[0].value):
+for (rsadata, symalg, num, iv, symdata) in XXXXdecoder(rcp.value[0].asbytes()):
     decrypted = i2bin(pow(b2int(rsadata), privkey[2], privkey[0]), len(rsadata))
     if decrypted[:2] != b'\x00\x02':
         raise Exception("failed rsa decrypted")
