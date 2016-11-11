@@ -2,6 +2,10 @@
 Simple pdf parser
 
 Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
+
+
+todo: add start offset to items, so we can use startxref and xref information.
+some pdfs don't have a trailer, but only a fileoffset from 'startxref'
 """
 from __future__ import print_function
 import binascii
@@ -66,6 +70,7 @@ def decode_string(txt):
             enc = 'ascii'
     return "%s:'%s'" % (enc, txt)
 
+
 class PdfComment:
     def __init__(self, value):
         self.value = value
@@ -116,12 +121,23 @@ class PdfHexdata:
     def asbytes(self):
         return binascii.a2b_hex(self.value)
 
+
 class PdfName:
     def __init__(self, value):
         self.value = value
 
+    def name(self):
+        return self.value.decode('utf-8', 'ignore')
     def __repr__(self):
         return "PdfName: %s" % string_nesting_escape(simple_decode_string(self.value))
+    def __eq__(self, rhs):
+        if isinstance(rhs, PdfName):
+            rhs = self.value
+        if type(rhs)==str:
+            return self.value == rhs
+    def __ne__(self, rhs):
+        return not (self==rhs)
+
 
 class PdfNumber:
     def __init__(self, value):
@@ -131,6 +147,9 @@ class PdfNumber:
         return "PdfNumber: %s" % self.value
     def asint(self):
         return int(self.value)
+    def asfloat(self):
+        return float(self.value)
+
 
 class PdfOperator:
     def __init__(self, value):
@@ -147,13 +166,43 @@ class PdfDictionary:
     def __repr__(self):
         return "PdfDictionary: %s" % self.value
 
-    def get(self, n):
-        retnext = False
+    def convert(self):
+        """ convert dictionary item list to dict """
+        if not self.d is None:
+            return
+        self.d = dict()
+        iskey = True
+        k = v = None
         for i in self.value:
-            if retnext:
-                return i
-            if isinstance(i, PdfName) and i.value==n:
-                retnext = True
+            if iskey:
+                if not isinstance(i, PdfName):
+                    raise Exception("dict keys must be names")
+                k = i.name()
+                iskey = False
+            else:
+                v = i
+                if k in self.d:
+                    print("WARNING: duplicate key in dict : %s = %s .. %s" % (k, self.d[k], v))
+                self.d[k] = v
+                iskey = True
+
+    def get(self, key):
+        self.convert()
+        if not key in self.d:
+            return None
+        return self.d[key]
+
+    # make it behave like a dict
+    def __contains__(self, key):
+        self.convert()
+        return item in self.d
+    def __getitem__(self, key):
+        return self.get(key)
+    def __iter__(self):
+        self.convert()
+        return iter(self.d)
+
+
 
 class PdfArray:
     def __init__(self, value):
@@ -161,6 +210,13 @@ class PdfArray:
 
     def __repr__(self):
         return "PdfArray: %s" % self.value
+
+    def __getitem__(self, i):
+        return self.value[i]
+    def __len__(self):
+        return len(self.value)
+    def __iter__(self):
+        return iter(self.value)
 
 class PdfStream:
     def __init__(self, params, data):
