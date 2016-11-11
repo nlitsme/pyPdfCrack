@@ -100,6 +100,7 @@ def XXXXdecoder(data):
 
 
 def decode_int(data):
+    if len(data)==1: return struct.unpack(">B", data)[0]
     if len(data)==2: return struct.unpack(">H", data)[0]
     if len(data)==4: return struct.unpack(">L", data)[0]
     raise Exception("unsupported int type")
@@ -168,7 +169,22 @@ def recursive_decoder(data):
         yield from envelopeddatadecoder(content[1])
 
 if __name__=="__main__":
-    with open("testpw/test.p12", "rb") as fh:
-        data = fh.read()
+    """ When called as a script: analyze the arguments as if it is pkcs12 data """
+    if len(sys.argv)==1:
+        if sys.version_info < (3, 0):
+            stdin = sys.stdin
+        else:
+            stdin = sys.stdin.buffer
+        data = stdin.read()
         for (alg, iv, n, data) in pkcs12decoder(data):
             print(alg, iv, n, data)
+    else:
+        for fn in sys.argv[1:]:
+            print("==>", fn, "<==")
+            try:
+                with open(fn, "rb") as fh:
+                    data = fh.read()
+                    for (alg, iv, n, data) in pkcs12decoder(data):
+                        print(alg, iv, n, data)
+            except Exception as e:
+                print(e)
