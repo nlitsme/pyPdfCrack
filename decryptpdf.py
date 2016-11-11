@@ -60,11 +60,11 @@ with open(certname, "rb") as fh:
             usercert = data
 
 trailer = findtrailer(stk)
-encref = trailer.get(b'Encrypt')
+encref = trailer['Encrypt']
 enc = encref.dereference(objs)
-cf = enc.get(b'CF')
-filt = cf.get(b'DefaultCryptFilter')
-rcp = filt.get(b'Recipients')
+cf = enc['CF']
+filt = cf['DefaultCryptFilter']
+rcp = filt['Recipients']
 
 def b2int(data):
     return int(b2a_hex(data),16)
@@ -76,7 +76,7 @@ def objkey(oid, gen, mkey):
     """ generate decryption key for the specified object """
     return md5(mkey[:16] + struct.pack("<HBH", oid&0xFFFF, oid>>16, gen) + b'sAlT')
 
-for (rsadata, symalg, num, iv, symdata) in XXXXdecoder(rcp.value[0].asbytes()):
+for (rsadata, symalg, num, iv, symdata) in XXXXdecoder(rcp[0].asbytes()):
     decrypted = i2bin(pow(b2int(rsadata), privkey[2], privkey[0]), len(rsadata))
     if decrypted[:2] != b'\x00\x02':
         raise Exception("failed rsa decrypted")
@@ -91,13 +91,13 @@ for (rsadata, symalg, num, iv, symdata) in XXXXdecoder(rcp.value[0].asbytes()):
 
     print("seed = %s" % b2a_hex(seed))
 
-    mkey = sha1(seed + rcp.value[0].value)
+    mkey = sha1(seed + rcp[0].asbytes())
     print("mkey=", b2a_hex(mkey))
 
 # as an example decrypt the Info dictionary
-inforef = trailer.get(b'Info')
+inforef = trailer['Info']
 infodict = inforef.dereference(objs)
-for k in (b'Author', b'CreationDate', b'Creator', b'ModDate', b'Producer'):
-    s = infodict.get(k).value
+for k in ('Author', 'CreationDate', 'Creator', 'ModDate', 'Producer'):
+    s = infodict[k].asbytes()
     print(k, aes(s[16:], objkey(inforef.oid,inforef.gen,mkey), s[:16]))
 
