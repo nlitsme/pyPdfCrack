@@ -34,30 +34,35 @@ def findtrailer(stk):
             retnext = True
 
 pdfname, certname, certpw = sys.argv[1:]
-stk, objs = parsepdf(args, UngetStream(open(pdfname, "rb")))
 
 certpw += '\x00'
 certpw = certpw.encode('utf-16be')
 
 privkey = usercert = None
 
+# read the private and public keys from the PKCS12 file
 with open(certname, "rb") as fh:
     """ tries to decrypt any encrypted blobs from a pkcs12 encoded keybag """
     for (alg, salt, n, data) in pkcs12decoder(fh.read()):
-        if alg=='1.2.840.113549.1.12.1.3':
+        if alg=='1.2.840.113549.1.12.1.3':  # pbeWithSHAAnd3-KeyTripleDES-CBC
             keysize = 24
-        else:
+        else:  # 1.2.840.113549.1.12.1.6   -> pbewithSHAAnd40BitRC2CBC
             keysize = 5
         key = genkey(salt, 1, certpw, n, keysize)
         iv = genkey(salt, 2, certpw, n, 8)
-        if alg=='1.2.840.113549.1.12.1.3':
+        if alg=='1.2.840.113549.1.12.1.3':  # pbeWithSHAAnd3-KeyTripleDES-CBC
+            print("3des - salt = %s  -> iv = %s, key = %s" % (b2a_hex(salt), b2a_hex(iv), b2a_hex(key)))
             data = des3(data, key, iv)
-            print("priv", b2a_hex(data[-16:]))
+            print("priv", b2a_hex(data))
             privkey = privdecoder(data)
-        else:
+        else:                               # pbewithSHAAnd40BitRC2CBC
+            print("rc2  - salt = %s  -> iv = %s, key = %s" % (b2a_hex(salt), b2a_hex(iv), b2a_hex(key)))
             data = rc2(data, key, iv)
-            print("cert", b2a_hex(data[-16:]))
+            print("cert", b2a_hex(data))
             usercert = data
+
+# parse the PDF into tokens
+stk, objs = parsepdf(args, UngetStream(open(pdfname, "rb")))
 
 trailer = findtrailer(stk)
 encref = trailer['Encrypt']
@@ -76,7 +81,9 @@ def objkey(oid, gen, mkey):
     """ generate decryption key for the specified object """
     return md5(mkey[:16] + struct.pack("<HBH", oid&0xFFFF, oid>>16, gen) + b'sAlT')
 
+# now for all keys found in the PDF's Recipients dictionary try to extract a masterkey.
 for (rsadata, symalg, num, iv, symdata) in XXXXdecoder(rcp[0].asbytes()):
+    # first decrypt using the rsa private key
     decrypted = i2bin(pow(b2int(rsadata), privkey[2], privkey[0]), len(rsadata))
     if decrypted[:2] != b'\x00\x02':
         raise Exception("failed rsa decrypted")
