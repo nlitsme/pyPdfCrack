@@ -4,10 +4,13 @@ Functions for decoding DER encoded objects
 Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
 """
 import struct
+import re
+import datetime
 def get_int8(b):  return struct.unpack(">B", b)[0]
 def get_int16(b): return struct.unpack(">H", b)[0]
 def get_int24(b): (a,b)= struct.unpack(">BH", b);  return (a<<16)|b
 def get_int32(b): return struct.unpack(">L", b)[0]
+def get_int64(b): return struct.unpack(">Q", b)[0]
 
 def get_length(data):
     hdr= get_int8(data[:1])
@@ -46,6 +49,31 @@ def bytes2int(data):
     if num>=pow(2, 8*len(data)-1):
         num -= pow(2, 8*len(data))
     return num
+
+def gettime(x):
+    #  YYmmddHHMMSS('Z'|[+-]hhmm)              - 0x17: utc time - ITU-T Rec. X.680 
+    #  YYYYmmddHHMMSS[.uuuuuu]('Z'|[+-]hhmm)   - 0x18: generalized time - ITU-T Rec. X.680 
+    m = re.match(r'^(\d+)(?:\.(\d+))?(Z|(?:[+-]\d\d(?::?\d\d)+))$', x)
+    if not m:
+        raise Exception('invalid time format')
+    ymdhms = m.group(1) # date+time
+    frac   = m.group(2) # fractional seconds
+    tzspec = m.group(3) # timezone
+    if len(ymdhms)==12:
+        # guess century
+        century = '20' if ymdhms[0]<'8' else '19'
+        ymdhms = century + ymdhms
+    if frac:
+        usec = int(frac) * pow(10, 6-len(frac))
+    else:
+        usec = 0
+
+    # todo - implement tzinfo
+    ymd = [int(ymdhms[:4])]
+    ymd.extend(int(ymdhms[i:i+2],10) for i in range(4,14,2))
+    ymd.append(usec)
+
+    return datetime.datetime(*ymd)
 
 
 # returns list of tuples,
