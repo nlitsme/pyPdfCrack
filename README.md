@@ -125,12 +125,50 @@ The certificate encryption works as follows:
 To be able to read a pdf, you need the corresponding certificate, for which you need a password.
 
 The certificate contains two encrypted parts, both encrypted with the same password.
+
+    +--------------------------------------------+
+    |  Certificate.p12                           |
+    +--------+----+-------+----------------------+
+    | rc2-40 |salt| count | encrypted ownercert  |
+    +--------+----+-------+----------------------+
+    | 3des-96|salt| count | encrypted privatekey |
+    +--------+----+-------+----------------------+
+
+
+
+                                         +------------------------+
+      <privkey>                          | Recipients             |
+          |                              +------------------------+
+          |    +-------------------------| rsa-encrypted(rc2-key) |
+          v    V                         +------------------------+
+        [rsa decrypt]                    | rc2-encrypted(seed)    |
+               |                         +------------------------+
+        <pkcs1.5 padded key>                         |
+               |                                     v
+               +-------------------------------[rc2 decrypt]
+                                                     |
+                                                     v
+                                                   <seed>
+                                                     |
+                                                     v
+                                                   [sha1]
+                                                     |
+                                                     v
+                                                   <masterkey>
+
+
 The first is the certificate owner information, basically a x.509 certificate.
 This part is encrypted using 40bit RC2, the key can easily be brute forced, less than a day's work on a modern laptop.
 The second part contains the private rsa key for the owner certificate.
 This part is encrypted using Triple-DES with a 192 bit key.
 Both the 40bit RC2 key and 192bit 3DES key are derived from the certificate password by repeatedle doing a SHA1 of the
 salted password string.
+
+    +----------+
+    | password |----+--->[genkey, salt, 1]------> key-----+--[ rc2 or 3des]  ----> [ cert or privkey ]
+    +----------+    |                                     |  
+                    +--->[genkey, salt, 2]------> iv  ----+
+
 
 So, by first cracking the 40bit RC2 key, and then using this as the target for a dictionary attack,
 one might be able to crack the encrypted rsa private key.
