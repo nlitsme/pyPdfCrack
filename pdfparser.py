@@ -13,6 +13,7 @@ import struct
 import re
 import sys
 import os
+from zlib import decompressobj
 if sys.version_info < (3, 0):
     bytes = bytearray
     reload(sys)
@@ -224,6 +225,17 @@ class PdfStream:
         self.params = params
     def __repr__(self):
         return "PdfStream: %s" % self.params
+    def contents(self):
+        filt = self.params['Filter']
+        if filt.name() == 'FlateDecode':
+            dec = decompressobj(15)
+            data = dec.decompress(self.data)
+            print(data)
+        elif filt:
+            print("unknown filter: %s" % filt)
+        else:
+            print(self.data)
+
 
 class PdfObject:
     def __init__(self, body):
@@ -446,6 +458,15 @@ def readuntileol(fh):
 
 
 
+def skipws(fh):
+    while True:
+        b = fh.read(1)
+        if b == b'':
+            return
+        if b not in b'\r\n':
+            fh.unget(b)
+            return
+
 
 def parsepdf(args, fh):
     """
@@ -532,6 +553,7 @@ def parsepdf(args, fh):
                 d = stack.pop()
                 if not isinstance(d, PdfDictionary): raise Exception("expected dict before stream")
                 #if not d.has(b'Length'): raise Exception("expected Length in stream dict")
+                skipws(fh)
                 strdata, found = readuntil(fh, b'endstream')
                 if not found:
                     raise Exception("No endstream found")
@@ -572,6 +594,8 @@ def processfile(args, fh):
     print(stack)
     for k,v in objects.items():
         print("%05d: %s" % (k, v))
+        if args.verbose and isinstance(v.body[0], PdfStream):
+            v.body[0].contents()
 
 
 def DirEnumerator(args, path):
