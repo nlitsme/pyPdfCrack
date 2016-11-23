@@ -182,13 +182,11 @@ producing the following output: ( not yet with the pretty indenting )
     00001: PdfObject: [PdfDictionary: [
          PdfName: Metadata, PdfReference: 00007.0, 
          PdfName: Pages, PdfReference: 00002.0, 
-         PdfName: Type, 
-         PdfName: Catalog]]
+         PdfName: Type, PdfName: Catalog]]
     00002: PdfObject: [PdfDictionary: [
          PdfName: Count, PdfNumber: 1, 
          PdfName: Kids, PdfArray: [PdfReference: 00004.0], 
-         PdfName: Type, 
-         PdfName: Pages]]
+         PdfName: Type, PdfName: Pages]]
     00003: PdfObject: [PdfDictionary: [
          PdfName: Author, PdfString: hex:'5b97d367c7310b9d80761c86e66fa2c71dab01fb150e6fa4c55cb4bf80fac19cda79513966f9d6c1e938080fc8c87800', 
          PdfName: CreationDate, PdfString: hex:'5b97d367c7310b9d80761c86e66fa2c710cf138a9608a559cf8aa4e14fe9f97ee6e7ef89029fb1f7399dd9e64b0d7cab', 
@@ -201,45 +199,32 @@ producing the following output: ( not yet with the pretty indenting )
          PdfName: Parent, PdfReference: 00002.0, 
          PdfName: Resources, PdfDictionary: [
              PdfName: Font, PdfDictionary: [
-             PdfName: F1, PdfReference: 00006.0]], 
+                 PdfName: F1, PdfReference: 00006.0]], 
          PdfName: TrimBox, PdfArray: [PdfNumber: 0, PdfNumber: 0, PdfNumber: 595, PdfNumber: 842], 
-         PdfName: Type, 
-         PdfName: Page]]
+         PdfName: Type, PdfName: Page]]
     00005: PdfObject: [PdfStream: PdfDictionary: [
-         PdfName: Filter, 
-         PdfName: FlateDecode, 
+         PdfName: Filter, PdfName: FlateDecode, 
          PdfName: Length, PdfNumber: 80]]
     00006: PdfObject: [PdfDictionary: [
-         PdfName: BaseFont, 
-         PdfName: Helvetica, 
-         PdfName: Encoding, 
-         PdfName: WinAnsiEncoding, 
-         PdfName: Subtype, 
-         PdfName: Type1, 
-         PdfName: Type, 
-         PdfName: Font]]
+         PdfName: BaseFont, PdfName: Helvetica, 
+         PdfName: Encoding, PdfName: WinAnsiEncoding, 
+         PdfName: Subtype, PdfName: Type1, 
+         PdfName: Type, PdfName: Font]]
     00007: PdfObject: [PdfStream: PdfDictionary: [
          PdfName: Length, PdfNumber: 2848, 
-         PdfName: Subtype, 
-         PdfName: XML, 
-         PdfName: Type, 
-         PdfName: Metadata]]
+         PdfName: Subtype, PdfName: XML, 
+         PdfName: Type, PdfName: Metadata]]
     00008: PdfObject: [PdfDictionary: [
          PdfName: CF, PdfDictionary: [
              PdfName: DefaultCryptFilter, PdfDictionary: [
-             PdfName: CFM, 
-             PdfName: AESV2, 
-             PdfName: Recipients, PdfArray: [PdfString: hex:'308201f706092a'...]]], 
-         PdfName: Filter, 
-         PdfName: Adobe.PubSec, 
+                 PdfName: CFM, PdfName: AESV2, 
+                 PdfName: Recipients, PdfArray: [PdfString: hex:'308201f706092a'...]]], 
+         PdfName: Filter, PdfName: Adobe.PubSec, 
          PdfName: Length, PdfNumber: 128, 
          PdfName: R, PdfNumber: 4, 
-         PdfName: StmF, 
-         PdfName: DefaultCryptFilter, 
-         PdfName: StrF, 
-         PdfName: DefaultCryptFilter, 
-         PdfName: SubFilter, 
-         PdfName: adbe.pkcs7.s5, 
+         PdfName: StmF, PdfName: DefaultCryptFilter, 
+         PdfName: StrF, PdfName: DefaultCryptFilter, 
+         PdfName: SubFilter, PdfName: adbe.pkcs7.s5, 
          PdfName: V, PdfNumber: 4]]
 
 
