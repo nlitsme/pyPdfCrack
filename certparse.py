@@ -29,6 +29,8 @@ def oidpack(dotted):
     for x in nums:
         bits += packnum(x)
     return bits
+
+
 def oidunpack(data):
     """ convert binary oid to dotted notation """
     def oidgen(data):
@@ -48,6 +50,7 @@ def oidunpack(data):
                 id = 0
     return ".".join(str(_) for _ in oidgen(data))
 
+
 def x509decoder(data):
     """
     parses X509 certificate
@@ -66,6 +69,7 @@ def x509decoder(data):
         items.append(None)
     return items
 
+
 def privdecoder(data):
     """
     parses private rsa key
@@ -78,6 +82,8 @@ def privdecoder(data):
     mod, pubexp, privexp = nums[1:4]
 
     return bytes2int(mod[1]), bytes2int(pubexp[1]), bytes2int(privexp[1])
+
+
 def pkcs12decoder(data):
     """
     parses pkcs12 object
@@ -90,6 +96,7 @@ def pkcs12decoder(data):
     if version[1]!=b'\x03': raise Exception("expected pkcs12 v3")
     yield from recursive_decoder(content[1])
 
+
 def XXXXdecoder(data):
     t, l, v = get_tlv(data)
     if t!=0x30: raise Exception("expected SEQ")
@@ -98,12 +105,12 @@ def XXXXdecoder(data):
     yield from recursive_decoder(v)
 
 
-
 def decode_int(data):
     if len(data)==1: return struct.unpack(">B", data)[0]
     if len(data)==2: return struct.unpack(">H", data)[0]
     if len(data)==4: return struct.unpack(">L", data)[0]
     raise Exception("unsupported int type")
+
 
 def pkcs8decoder(data):
     """
@@ -117,6 +124,7 @@ def pkcs8decoder(data):
     #print("PKCS8 - alg=", oidunpack(algoid[1]), "iv=", iv, "iter=", itercount, "cont=", encdata)
     yield (oidunpack(algoid[1]), iv[1], decode_int(itercount[1]), encdata[1])
 
+
 def encrypteddatadecoder(data):
     """
     parses EncryptedData object
@@ -129,6 +137,7 @@ def encrypteddatadecoder(data):
     iv, itercount = der_decode(params[1])
     #print("PKCS7 - type=",oidunpack(ctyp[1]), "alg=", oidunpack(algoid[1]), "iv=", iv, "iter=", itercount, "cont=", content)
     yield (oidunpack(algoid[1]), iv[1], decode_int(itercount[1]), content[1])
+
 
 def envelopeddatadecoder(data):
     """
@@ -144,6 +153,7 @@ def envelopeddatadecoder(data):
     symalg, symparams = der_decode(symalg[1])
     num, iv = der_decode(symparams[1])
     yield (rsadata[1], symalg[1], num[1], iv[1], symdata[1])
+
 
 def recursive_decoder(data):
     """
@@ -167,6 +177,7 @@ def recursive_decoder(data):
         yield from encrypteddatadecoder(content[1])
     elif contenttype[1]==oidpack("1.2.840.113549.1.7.3"):
         yield from envelopeddatadecoder(content[1])
+
 
 if __name__=="__main__":
     """ When called as a script: analyze the arguments as if it is pkcs12 data """
