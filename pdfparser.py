@@ -71,6 +71,26 @@ def decode_string(txt):
             enc = 'ascii'
     return "%s:'%s'" % (enc, txt)
 
+def print_jpeg_info(data):
+    if not data.startswith(b"\xff\xd8"):
+        print("not a jpg: %s" % binascii.b2a_hex(data[:16]))
+    print("JPG: ", end="")
+    o = 2
+    while o<len(data):
+        typ, siz = struct.unpack_from(">HH", data, o) ; o += 4
+        if typ == 0xFFE0:
+            mg, ver, units, xdensity, ydensity, xthumb, ythumb = struct.unpack_from(">5sHBHHBB", data, o)
+            print(" %s v%04x  U%d, density:(%d,%d), thumb:(%d,%d)" % (mg, ver, units, xdensity, ydensity, xthumb, ythumb), end="")
+        elif typ == 0xFFC0:
+            depth, height, width = struct.unpack_from(">BHH", data, o)
+            print(" %d bits, %d x %d" % (depth, width, height), end="")
+        elif typ == 0xFFDA:
+            break
+#       else:
+#           print(" jpg-%04x: %s" % (typ, binascii.b2a_hex(data[o:o+siz-2])))
+
+        o += siz-2
+    print()
 
 class PdfComment:
     def __init__(self, value):
@@ -196,7 +216,7 @@ class PdfDictionary:
     # make it behave like a dict
     def __contains__(self, key):
         self.convert()
-        return item in self.d
+        return key in self.d
     def __getitem__(self, key):
         return self.get(key)
     def __iter__(self):
@@ -227,12 +247,26 @@ class PdfStream:
         return "PdfStream: %s" % self.params
     def contents(self):
         filt = self.params['Filter']
-        if filt.name() == 'FlateDecode':
+
+        def matchfilter(tag):
+            if not filt:
+                return False
+            if isinstance(filt, PdfName) and filt.name() == tag:
+                return True
+            if isinstance(filt, PdfArray) and filt[0].name() == tag:
+                return True
+            return False
+
+        # todo: ASCII85Decode
+        if matchfilter('FlateDecode'):
             dec = decompressobj(15)
             data = dec.decompress(self.data)
             print(data)
+        elif matchfilter('DCTDecode'):
+            print_jpeg_info(self.data)
         elif filt:
             print("unknown filter: %s" % filt)
+            print(self.data)
         else:
             print(self.data)
 
@@ -507,7 +541,7 @@ def parsepdf(args, fh):
     if args.verbose:
         print("skipping: %s" % start)
     for item in pdftokenizer(args, fh):
-        if args.verbose:
+        if args.verbose>1:
             print(item)
         if isinstance(item, PdfComment):
             if item.value.startswith(b'%EOF'):
@@ -641,7 +675,7 @@ if __name__=="__main__":
     import sys
     import argparse
     parser = argparse.ArgumentParser(description='pdfparser')
-    parser.add_argument('--verbose', '-v', action='count')
+    parser.add_argument('--verbose', '-v', action='count', default=0)
     parser.add_argument('--recurse', '-r', action='store_true', help='recurse into directories')
     parser.add_argument('--skiplinks', '-L', action='store_true', help='skip symbolic links')
     parser.add_argument('--errorfatal', '-E', action='store_true', help='abort on errors')
