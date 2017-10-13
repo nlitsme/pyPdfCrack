@@ -3,6 +3,7 @@ Functions for decoding DER encoded objects
 
 Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
 """
+from __future__ import division, print_function
 import struct
 import re
 import datetime
@@ -13,7 +14,7 @@ def get_int32(b): return struct.unpack(">L", b)[0]
 def get_int64(b): return struct.unpack(">Q", b)[0]
 
 def get_length(data):
-    hdr= get_int8(data[:1])
+    hdr = get_int8(data[:1])
     if hdr<=0x7F:
         return (hdr, 1)
     elif hdr==0x81:
@@ -32,8 +33,8 @@ def get_length(data):
 def get_tlv(data):
     if len(data)<2:
         return None
-    tag= get_int8(data[:1])
-    (vlen, i)= get_length(data[1:5])
+    tag = get_int8(data[:1])
+    (vlen, i) = get_length(data[1:5])
     if i+vlen+1>len(data):
         return None
     return (tag, i+vlen+1, data[i+1:i+1+vlen])
@@ -51,8 +52,8 @@ def bytes2int(data):
     return num
 
 def gettime(x):
-    #  YYmmddHHMMSS('Z'|[+-]hhmm)              - 0x17: utc time - ITU-T Rec. X.680 
-    #  YYYYmmddHHMMSS[.uuuuuu]('Z'|[+-]hhmm)   - 0x18: generalized time - ITU-T Rec. X.680 
+    #  YYmmddHHMMSS('Z'|[+-]hhmm)              - 0x17: utc time - ITU-T Rec. X.680
+    #  YYYYmmddHHMMSS[.uuuuuu]('Z'|[+-]hhmm)   - 0x18: generalized time - ITU-T Rec. X.680
     m = re.match(r'^(\d+)(?:\.(\d+))?(Z|(?:[+-]\d\d(?::?\d\d)+))$', x)
     if not m:
         raise Exception('invalid time format')
@@ -80,10 +81,10 @@ def gettime(x):
 #   either  (tag, value)
 #   or      (None, rawdata)   when the data could not be decoded
 def der_decode(data):
-    items= []
-    i= 0
+    items = []
+    i = 0
     while i+1<len(data):
-        (t,l,v)= get_tlv(data[i:])
+        (t,l,v) = get_tlv(data[i:])
         i += l
         items.append((t,v))
     if i!=len(data):
