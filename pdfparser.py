@@ -186,6 +186,9 @@ class PdfDictionary:
 
     def __repr__(self):
         return "PdfDictionary: %s" % self.value
+    def __str__(self):
+        self.convert()
+        return "PdfDictionary: {\n    %s\n}" % "\n    ".join("'%s': %s" % (k, v) for k, v in self.d.items())
 
     def convert(self):
         """ convert dictionary item list to dict """
@@ -274,6 +277,8 @@ class PdfStream:
 class PdfObject:
     def __init__(self, body):
         self.body = body
+    def __str__(self):
+        return "PdfObject: [\n    %s\n]" % "\n    ".join(str(_) for _ in self.body)
     def __repr__(self):
         return "PdfObject: %s" % self.body
 
@@ -509,7 +514,7 @@ def parsepdf(args, fh):
 
     returns the remaining stack + the list of objects.
 
-    todo: return trailer and xref as seperate objects.
+    todo: return trailer and xref as separate objects.
     """
     objects = dict()
     stack = []
@@ -625,7 +630,10 @@ class UngetStream:
 
 def processfile(args, fh):
     stack, objects = parsepdf(args, UngetStream(fh))
-    print(stack)
+    print("---- parse stack ----")
+    #print(stack)
+
+    print("---- objects ----")
     for k,v in objects.items():
         print("%05d: %s" % (k, v))
         if args.verbose and isinstance(v.body[0], PdfStream):
