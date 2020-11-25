@@ -154,6 +154,8 @@ def getencryptioninfo(fh):
     ue = enc['UE']
 
     inforef = trailer['Info']
+    if not inforef:
+        raise Exception("no inforef")
     info = inforef.dereference(objs)
 
     # todo - what is enc.get(b'Perms') ?
@@ -219,7 +221,7 @@ def processfile(fh):
     useaes = revision>=4
     # todo: check CFM for 'AESV2'
     infokey = calcpdfkey(rc4key, inforef.oid, inforef.gen, useaes)
-    for k in ('Author', 'CreationDate', 'Creator', 'ModDate', 'Producer', 'Keywords', 'Subject', 'Title'):
+    for k in ('Author', 'CreationDate', 'Creator', 'ModDate', 'Producer', 'Keywords', 'Subject', 'Title', 'Perms'):
         v = info.get(k)
         if v:
             if useaes:
